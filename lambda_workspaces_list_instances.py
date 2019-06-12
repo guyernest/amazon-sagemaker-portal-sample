@@ -25,7 +25,7 @@ import json
 import base64
 
 Logger       = None
-DDBTableName = "WorkspacesPortal"
+DDBTableName = "SagemakerPortal"
 
 def ParseJWT(Token):
     global Logger
@@ -91,7 +91,7 @@ def lambda_handler(event, context):
     Expression = Attr("UserName").eq(Username)
     
     StartKey       = {}
-    WorkspacesList = []
+    InstancesList = []
     while True: # Loop until no more items come from the DDB Scan
         Logger.info("DDB scan loop, StartKey="+str(StartKey))
         try:
@@ -110,21 +110,16 @@ def lambda_handler(event, context):
             Response["body"] = '{"Error":"DynamoDB scan error."}'
             return(Response)
 
-        for Workspace in Result["Items"]:
-            Logger.info("Processing "+Workspace["WorkspaceId"])
+        for Instance in Result["Items"]:
+            Logger.info("Processing "+Instance["InstanceId"])
             
             # Need to convert Decimal() to actual numbers before returning JSON
-            if "LastConnected" in Workspace: Workspace["LastConnected"] = int(Workspace["LastConnected"])
-            if "LastTouched"   in Workspace: Workspace["LastTouched"]   = int(Workspace["LastTouched"])
+            if "LastConnected" in Instance: Instance["LastConnected"] = int(Instance["LastConnected"])
+            if "LastTouched"   in Instance: Instance["LastTouched"]   = int(Instance["LastTouched"])
 
-            WorkspacesList.append(Workspace)
+            InstancesList.append(Instance)
 
-        if "LastEvaluatedKey" in Result:
-            StartKey = Result["LastEvaluatedKey"]
-        else:
-            break
-
-    JSONObject = {"Workspaces":WorkspacesList}
+    JSONObject = {"Instances":InstancesList}
     Response["body"] = json.dumps(JSONObject)
 
     return(Response)
