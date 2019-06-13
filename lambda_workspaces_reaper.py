@@ -23,7 +23,7 @@ import logging
 from botocore.exceptions import ClientError
 
 Logger       = None
-DDBTableName = "WorkspacesPortal"
+DDBTableName = "sagemakerportaleu"
 
 def Deserialise(DDBItem):
     for Key in DDBItem:
@@ -44,60 +44,45 @@ def lambda_handler(event, context):
     DynamoDBClient = boto3.client("dynamodb")
 
     StartKey       = {}
-    WorkspacesList = []
-    while True: # Loop until no more items from the DDB scan
-        Logger.info("DDB scan loop, StartKey="+str(StartKey))
+    InstancesList = []
+#    while True: # Loop until no more items from the DDB scan
+    Logger.info("DDB scan loop, StartKey="+str(StartKey))
         
-        try:
-            if len(StartKey) == 0:
-                Result = DynamoDBClient.scan(TableName=DDBTableName,
-                                             Select="SPECIFIC_ATTRIBUTES",
-                                             AttributesToGet=["WorkspaceId","Region","ComputerName","UserName"])
-            else:
-                Result = DynamoDBClient.scan(TableName=DDBTableName,
-                                             Select="SPECIFIC_ATTRIBUTES",
-                                             AttributesToGet=["WorkspaceId","Region","ComputerName","UserName"],
-                                             ExclusiveStartKey=StartKey)
-        except ClientError as e:
-            Logger.error("DynamoDB error: "+e.response['Error']['Message'])
-            return
-
-        for Workspace in Result["Items"]:
-            WorkspacesList.append(Workspace)
-
-        if "LastEvaluatedKey" in Result:
-            StartKey = Result["LastEvaluatedKey"]
+    try:
+        if len(StartKey) == 0:
+            Result = DynamoDBClient.scan(TableName=DDBTableName,
+                                            Select="SPECIFIC_ATTRIBUTES",
+                                            AttributesToGet=["InstanceId","Region","InstanceType"])
         else:
-            break
+            Result = DynamoDBClient.scan(TableName=DDBTableName,
+                                            Select="SPECIFIC_ATTRIBUTES",
+                                            AttributesToGet=["InstanceId","Region","InstanceType"],
+                                            ExclusiveStartKey=StartKey)
+    except ClientError as e:
+        Logger.error("DynamoDB error: "+e.response['Error']['Message'])
+        return
 
-    for Item in WorkspacesList:
-        WorkspaceId = Deserialise(Item["WorkspaceId"])
+    Logger.info(Result)
+    for Instance in Result["Items"]:
+        InstancesList.append(Instance)
+
+
+    for Item in InstancesList:
+        InstanceId = Deserialise(Item["InstanceId"])
         Region      = Deserialise(Item["Region"])
 
-        logging.info("Looking for "+WorkspaceId+" in "+Region)
-        WorkspacesClient = boto3.client("workspaces", region_name=Region)
-        InstanceInfo = WorkspacesClient.describe_workspaces(WorkspaceIds=[WorkspaceId])
-        if len(InstanceInfo["Workspaces"]) > 0:
-            logging.info("  Instance alive - continuing")
-            continue
-
-        #
-        # This instance doesn't exist any more so let's remove it from the table and from AD
-        #
-        if "ComputerName" in Item:
-            ComputerName = Deserialise(Item["ComputerName"])
-            logging.info("  Removing "+ComputerName+" from AD")
-
-            #
-            # Here we should connect to AD and remove the Computer object
-            # so that stale Workspaces instances aren't left lying around
-            # in the target AD.
-            #
-        else:
-            logging.info("  No computer name found - cannot remove from AD")
+        logging.info("Looking for "+InstanceId+" in "+Region)
+        SageMakerClient = boto3.client("sagemaker", region_name=Region)
+        try:
+            InstanceInfo = SageMakerClient.describe_notebook_instance(NotebookInstanceName=InstanceId)
+            if len(InstanceInfo["NotebookInstanceStatus"]) > 0:
+                logging.info("  Instance alive - continuing")
+                continue
+        except ClientError as e:
+            Logger.error("Sagemaker Error: "+e.response['Error']['Message'])
 
         try:
-            Response = DynamoDBClient.delete_item(TableName=DDBTableName, Key={"WorkspaceId":Item["WorkspaceId"]})
+            DynamoDBClient.delete_item(TableName=DDBTableName, Key={"InstanceId":Item["InstanceId"]})
             logging.info("  Instance removed")
         except ClientError as e:
             Logger.error("DynamoDB error: "+e.response['Error']['Message'])

@@ -18,17 +18,17 @@ AWSTemplateFormatVersion: "2010-09-09"
 #
 
 Description: >
-  Template for the parts of the Workspaces portal that can be automated.
+  Template for the parts of the SageMaker portal that can be automated.
 
 Parameters:
   S3BucketName:
     Type: String
     Description: Name of the S3 bucket that will host the single-page web application
-    Default: workspacesportal
+    Default: sagemakerportal
   DDBTable:
     Type: String
     Description: DynamoDB table to create
-    Default: workspacesportal
+    Default: sagemakerportal
   UniqueSuffix:
     Type: String
     Description: Optional suffix to make identifying stack resources easier and to avoid conflicts
@@ -66,10 +66,10 @@ Resources:
     Properties:
       TableName: !Ref DDBTable
       AttributeDefinitions:
-        - AttributeName: "WorkspaceId"
+        - AttributeName: "InstanceId"
           AttributeType: "S"
       KeySchema:
-        - AttributeName: "WorkspaceId"
+        - AttributeName: "InstanceId"
           KeyType: "HASH"
       ProvisionedThroughput: 
         ReadCapacityUnits: "10"
@@ -130,9 +130,9 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: LambdaRole
     Properties:
-      FunctionName: !Sub "WorkspacesPortalFindInstances${UniqueSuffix}"
+      FunctionName: !Sub "SagemakerPortalFindInstances${UniqueSuffix}"
       Code:
-        S3Bucket: "gumbyadventures"
+        S3Bucket: "sagemaker-eu-west-1-217431963147"
         S3Key: "resources/lambda_workspaces_import.zip"
       Description: "Workspaces portal function to find all Workspaces instances in all applicable regions."
       Handler: "lambda_workspaces_import.lambda_handler"
@@ -147,9 +147,9 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: LambdaRole
     Properties:
-      FunctionName: !Sub "WorkspacesPortalActions${UniqueSuffix}"
+      FunctionName: !Sub "SagemakerPortalActions${UniqueSuffix}"
       Code:
-        S3Bucket: "gumbyadventures"
+        S3Bucket: "sagemaker-eu-west-1-217431963147"
         S3Key: "resources/lambda_workspaces_actions.zip"
       Description: "Workspaces portal function to perform actions as called by API Gateway."
       Handler: "lambda_workspaces_actions.lambda_handler"
@@ -164,9 +164,9 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: LambdaRole
     Properties:
-      FunctionName: !Sub "WorkspacesPortalListInstances${UniqueSuffix}"
+      FunctionName: !Sub "SagemakerPortalListInstances${UniqueSuffix}"
       Code:
-        S3Bucket: "gumbyadventures"
+        S3Bucket: "sagemaker-eu-west-1-217431963147"
         S3Key: "resources/lambda_workspaces_list_instances.zip"
       Description: "Workspaces portal function to return a list of Workspaces instances when called by API Gateway."
       Handler: "lambda_workspaces_list_instances.lambda_handler"
@@ -181,9 +181,9 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: LambdaRole
     Properties:
-      FunctionName: !Sub "WorkspacesPortalReaper${UniqueSuffix}"
+      FunctionName: !Sub "SagemakerPortalReaper${UniqueSuffix}"
       Code:
-        S3Bucket: "gumbyadventures"
+        S3Bucket: "sagemaker-eu-west-1-217431963147"
         S3Key: "resources/lambda_workspaces_reaper.zip"
       Description: "Workspaces portal function to remove deleted Workspaces instances from the DynamoDB table."
       Handler: "lambda_workspaces_reaper.lambda_handler"
@@ -245,21 +245,10 @@ Resources:
         - Arn: !GetAtt LambdaFunctionPortalReaper.Arn
           Id: "InstanceReaper"
 
-  DiscoverEventPermission:
-    Type: "AWS::Lambda::Permission"
-    DependsOn:
-      - LambdaFunctionFindInstances
-      - DiscoverEvent
-    Properties:
-      FunctionName: !Ref LambdaFunctionFindInstances
-      Action: "lambda:InvokeFunction"
-      Principal: "events.amazonaws.com"
-      SourceArn: !GetAtt DiscoverEvent.Arn
-
   UserPool:
     Type: "AWS::Cognito::UserPool"
     Properties:
-      UserPoolName: !Sub "WorkspacesPortal${UniqueSuffix}"
+      UserPoolName: !Sub "SagemakerPortal${UniqueSuffix}"
       Schema:
         - AttributeDataType: "String"
           Name: "ADGroups"
@@ -269,7 +258,7 @@ Resources:
     Type: "AWS::Cognito::UserPoolClient"
     Properties:
       UserPoolId: !Ref UserPool
-      ClientName: !Sub "WorkspacesPortal${UniqueSuffix}"
+      ClientName: !Sub "SagemakerPortal${UniqueSuffix}"
       ExplicitAuthFlows:
         - "ADMIN_NO_SRP_AUTH"
       ReadAttributes:
@@ -280,7 +269,7 @@ Resources:
   APIGateway:
     Type: "AWS::ApiGateway::RestApi"
     Properties:
-      Name: !Sub "WorkspacesPortal${UniqueSuffix}"
+      Name: !Sub "SagemakerPortal${UniqueSuffix}"
       FailOnWarnings: True
 
   APIGatewayStage:
